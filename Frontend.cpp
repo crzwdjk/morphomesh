@@ -17,6 +17,9 @@
 #include "ControlCurve.h"
 #include "LinearSolver.h"
 #include <milton.h>
+#include "MeshSkeleton.h"
+
+MeshSkeleton * skel;
 
 using namespace std;
 
