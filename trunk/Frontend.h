@@ -22,6 +22,8 @@
 #include "ControlCurve.h"
 #include "FiberMesh.h"
 
+extern MeshSkeleton * skel;
+
 class Frontend : public InteractionListener {
    public:
       Frontend(OpenGLCanvas *parent);

@@ -18,6 +18,13 @@ int main(int argc, char **argv) {
        canvas->registerInteractionListener(new Frontend(canvas));
      } else {
        const std::string meshFile = argv[1];
+       if (argc >= 3) {
+	   skel = MeshSkeleton::fromFile(argv[2]);
+	   if (!skel) {
+	       perror("couldn't open skeleton file");
+	       return 1;
+	   }
+       }
        canvas->registerInteractionListener(new Frontend(canvas, meshFile));
      }
 

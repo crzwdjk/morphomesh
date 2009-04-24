@@ -11,6 +11,7 @@
 #define MESHSKELETON_H
 
 #include <milton.h>
+#include "SparseMatrix.h"
 
 /* A mapping from a mesh vertex to its corresponding skeleton bone
    specifies relative position in cylindrical coordinates 
@@ -23,7 +24,7 @@ struct SkeletonMapping {
 };
 
 
-stuct Bone {
+struct Bone {
   int start_node;
   int end_node;
   Vector3 orient;    // basis for detrmining rotation about bone
@@ -32,15 +33,13 @@ stuct Bone {
 class MeshSkeleton {
  public:
 
-  MeshSkeleton(Mesh & m) : m_mesh(m) {  }
-
-  virtual ~MeshSkeleton();
+  virtual ~MeshSkeleton() {}
 
   void AddNode(Vector3 nodePos);
   
   void RemoveNode(unsigned int nodeIndex);
 
-  std::vector<Vector3> GetNodes() {
+  std::vector<Vector3> & GetNodes() {
     return m_nodes;
   }
 
@@ -48,12 +47,15 @@ class MeshSkeleton {
     return m_nodes.size();
   }
 
+  void draw();
+  static MeshSkeleton * fromFile(const char * filename);
+
  private:
   std::vector<Vector3> m_nodes;
   std::vector<Bone> m_bones;
-  
-  std::hash_map<int, SkeletonMapping> m_correspond;
-  Mesh & m_mesh;
+
+  SparseMatrix vertexbones;
+  Mesh * m_mesh;
 };
 
 #endif
