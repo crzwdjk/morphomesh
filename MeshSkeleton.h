@@ -27,7 +27,7 @@ struct SkeletonMapping {
 struct Bone {
   int start_node;
   int end_node;
-  Vector3 orient;    // basis for detrmining rotation about bone
+  Vector3 v3, v4;    // for tetrabone
 };
 
 class MeshSkeleton {
@@ -48,14 +48,21 @@ class MeshSkeleton {
   }
 
   void draw();
-  static MeshSkeleton * fromFile(const char * filename);
+  void update();
 
+  void bindMesh(Mesh * m);
+
+  static MeshSkeleton * fromFile(const char * filename);
+  void setWeights(SparseMatrix & w) { weights = w; }
  private:
   std::vector<Vector3> m_nodes;
   std::vector<Bone> m_bones;
 
-  SparseMatrix vertexbones;
+  SparseMatrix weights;
   Mesh * m_mesh;
+
+
+  void initTetrabones();
 };
 
 #endif
