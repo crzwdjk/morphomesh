@@ -9,19 +9,22 @@ MeshSkeleton * MeshSkeleton::fromFile(const char * filename)
     MeshSkeleton * skel = new MeshSkeleton;
 
     int c;
-    while ((c = fgetc(f)) != EOF) {
+
+    char line[80];
+    while (fgets(line, 80, f)) {
 	Vector3 p;
 	Bone b;
-	switch (c) {
+	switch (line[0]) {
 	case 'v':
-	    fscanf(f, "%lf %lf %lf\n", &(p[0]), &(p[1]), &(p[2]));
+	    sscanf(line + 1, "%lf %lf %lf\n", &(p[0]), &(p[1]), &(p[2]));
 	    printf("v %lf %lf %lf\n", p[0], p[1], p[2]);
 	    skel->m_nodes.push_back(p);
 	    break;
 	case 'e':
-	    fscanf(f, "%d %d\n", &(b.start_node), &(b.end_node));
+	    sscanf(line + 1, "%d %d\n", &(b.start_node), &(b.end_node));
 	    printf("e %d %d\n", b.start_node, b.end_node);
 	    skel->m_bones.push_back(b);
+	    break;
 	}
     }
     skel->initTetrabones();
@@ -62,6 +65,7 @@ void MeshSkeleton::draw()
 	glVertex3dv(m_nodes[m_bones[i].end_node].data);
     }
     glEnd();
+    return;
     // draw tetrabones
     glLineWidth(0.7);
     glBegin(GL_LINES);
