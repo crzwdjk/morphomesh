@@ -8,8 +8,6 @@ MeshSkeleton * MeshSkeleton::fromFile(const char * filename)
 
     MeshSkeleton * skel = new MeshSkeleton;
 
-    int c;
-
     char line[80];
     while (fgets(line, 80, f)) {
 	Vector3 p;
@@ -91,6 +89,17 @@ void MeshSkeleton::draw()
 
 }
 
+static Vector3 closest_point_seg(Vector3 p, Vector3 seg_start, Vector3 seg_end)
+{
+    Vector3 ab = seg_end - seg_start;
+    Vector3 ac = p - seg_start;
+    
+    double t = ab.dot(ac)/ab.getMagnitude2();
+    if (t <= 0) return seg_start;
+    else if (t >= 1) return seg_end;
+    else return t * ab + seg_start;
+}
+
 void MeshSkeleton::bindMesh(Mesh * m)
 {
     weights = new SparseMatrix(m_nodes.size(), m_bones.size());
@@ -103,7 +112,7 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	for (unsigned b = 0; b < m_bones.size(); b++) {
 	    Vector3 p = closest_point_seg(m_nodes[n], 
 					  m_nodes[m_bones[b].start_node],
-					  m_nodes[m_bones[b].start_node]);
+					  m_nodes[m_bones[b].end_node]);
 	    const double d = p.getDistance(v);
 	    if (d < closest_distance) {
 		closest_bone = b;
@@ -112,22 +121,22 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	    }
 	}
 	// handle joint case
-	if (closest_point == m_nodes[m_bones[b].start_node]
-	    || closest_point == m_nodes[m_bones[b].end_node]) {
+	if (closest_point == m_nodes[m_bones[closest_bone].start_node]
+	    || closest_point == m_nodes[m_bones[closest_bone].end_node]) {
 	    int bonecount = 0;
 	    for (unsigned b1 = 0; b1 < m_bones.size(); b1++) {
 		if (closest_point == m_nodes[m_bones[b1].start_node] ||
-		    closest_point == m_nodes[m_bones[b2].end_node]) {
+		    closest_point == m_nodes[m_bones[b1].end_node]) {
 		    bonecount++;
-		    weights.setValue(n, b1, 1.0);
+		    weights->setValue(n, b1, 1.0);
 		}
 	    }
 	    // normalize
-	    for(int i = 0; i < m_bones.size; i++)
-		weights.setValue(n, i, weights.getValue(n, i) / bonecount);
+	    for(int i = 0; i < m_bones.size(); i++)
+		weights->setValue(n, i, weights->getValue(n, i) / bonecount);
 	} 
 	else {
-	    weights.setValue(n, b, 1.0);
+	    weights->setValue(n, closest_bone, 1.0);
 	}
     }
 }

@@ -53,7 +53,7 @@ class MeshSkeleton {
   void bindMesh(Mesh * m);
 
   static MeshSkeleton * fromFile(const char * filename);
-  void setWeights(SparseMatrix & w) { weights = w; }
+  void setWeights(SparseMatrix * w) { weights = w; }
  private:
   std::vector<Vector3> m_nodes;
   std::vector<Bone> m_bones;
