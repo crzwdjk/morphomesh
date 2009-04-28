@@ -66,6 +66,7 @@ void MeshSkeleton::draw()
     }
     glEnd();
     return;
+
     // draw tetrabones
     glLineWidth(0.7);
     glBegin(GL_LINES);
@@ -92,16 +93,46 @@ void MeshSkeleton::draw()
 
 void MeshSkeleton::bindMesh(Mesh * m)
 {
-    // for each vertex v_i in Mesh 
-    //   find the nearest point on a bone
-    //   if that point is not a joint:
-    //     set w[i][b] = 1
-    //   else:
-    //     set w[i][b1] = w[i][b2] = 0.5
+    weights = new SparseMatrix(m_nodes.size(), m_bones.size());
+    for (unsigned n = 0; n < m_nodes.size(); n++) {
+	const Vector3 v = m_nodes[n];
+
+	int closest_bone = -1;
+	double closest_distance = INFINITY;
+	Vector3 closest_point;
+	for (unsigned b = 0; b < m_bones.size(); b++) {
+	    Vector3 p = closest_point_seg(m_nodes[n], 
+					  m_nodes[m_bones[b].start_node],
+					  m_nodes[m_bones[b].start_node]);
+	    const double d = p.getDistance(v);
+	    if (d < closest_distance) {
+		closest_bone = b;
+		closest_distance = d;
+		closest_point = p;
+	    }
+	}
+	// handle joint case
+	if (closest_point == m_nodes[m_bones[b].start_node]
+	    || closest_point == m_nodes[m_bones[b].end_node]) {
+	    int bonecount = 0;
+	    for (unsigned b1 = 0; b1 < m_bones.size(); b1++) {
+		if (closest_point == m_nodes[m_bones[b1].start_node] ||
+		    closest_point == m_nodes[m_bones[b2].end_node]) {
+		    bonecount++;
+		    weights.setValue(n, b1, 1.0);
+		}
+	    }
+	    // normalize
+	    for(int i = 0; i < m_bones.size; i++)
+		weights.setValue(n, i, weights.getValue(n, i) / bonecount);
+	} 
+	else {
+	    weights.setValue(n, b, 1.0);
+	}
+    }
 }
 
 // call this after you've adjusted the positions of the bones.
 void MeshSkeleton::update()
 {
-    // 
 }
