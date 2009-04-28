@@ -69,6 +69,9 @@ Frontend::~Frontend()
   //}
 }
 
+// MAGIC CONSTANT
+const real_t drag_thresh = 3;
+
 void Frontend::mousePressEvent  (InteractionInfo &info) {
    QMouseEvent *event = static_cast<QMouseEvent *>(info.event);
    
@@ -78,6 +81,27 @@ void Frontend::mousePressEvent  (InteractionInfo &info) {
    }
    
    const Vector2 pt(event->x(), event->y());
+   const Point2 pndc(pt[0]/getWidth(), pt[1]/getHeight(), 1);
+
+   if (skel) {
+       // find closest skel vertex. drag.
+       int closest_point = -1;
+       real_t min_distance = INFINITY;
+       for (unsigned i = 0; i < skel->GetNodes().size(); i++) {
+	   Point3 pnode = Point3(0, 0, 0, 1) + skel->GetNodes()[i];
+	   real_t dist = getCamera()->getProjection(pnode).getDistance(pndc);
+	   if (dist < min_distance) {
+	       min_distance = dist;
+	       closest_point = i;
+	   }
+       }
+       if (min_distance < drag_thresh / getWidth()) {
+	   m_deforming = true;
+	   m_deformingVert = closest_point;
+	   cerr << "drag " << closest_point << endl;
+       }
+   }
+
 #if 0   
    Qt::MouseButtons buttons = event->buttons();
    if (buttons & Qt::LeftButton) {
@@ -111,6 +135,14 @@ void Frontend::mouseMoveEvent  (InteractionInfo &info) {
    }
    
    const Vector2 pt(event->x(), event->y());
+   if (m_deforming) {
+       Ray r = getCamera()->getWorldRay(Point2(pt[0] / getWidth(), pt[1] / getHeight(), 1));
+       Vector3 d = skel->GetNodes()[m_deformingVert];
+       skel->GetNodes()[m_deformingVert] = (r.origin + d.getMagnitude() * r.direction) - Point3();
+       m_parent->redraw();
+       return;
+   }
+   
 #if 0
    if (m_deforming) {
      m_fiberMesh[m_deformingID]->DeformCurve(pt, m_deformingVert);
@@ -134,6 +166,11 @@ void Frontend::mouseReleaseEvent(InteractionInfo &info) {
    QMouseEvent *event = static_cast<QMouseEvent *>(info.event);   
    const Vector2 pt(event->x(), event->y());
 
+   if (m_deforming) {
+       skel->update();
+       m_deforming = false;
+       m_parent->redraw();
+   }
 #if 0
    if (m_deforming) {     
      m_fiberMesh[m_deformingID]->DeformCurve(pt, m_deformingVert, true);
