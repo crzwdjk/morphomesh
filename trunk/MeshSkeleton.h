@@ -58,7 +58,7 @@ class MeshSkeleton {
   std::vector<Vector3> m_nodes;
   std::vector<Bone> m_bones;
 
-  SparseMatrix weights;
+  SparseMatrix * weights;
   Mesh * m_mesh;
 
 
