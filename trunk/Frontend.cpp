@@ -19,7 +19,7 @@
 #include <milton.h>
 #include "MeshSkeleton.h"
 
-MeshSkeleton * skel;
+MeshSkeleton * skel = NULL;
 
 using namespace std;
 
@@ -78,7 +78,7 @@ void Frontend::mousePressEvent  (InteractionInfo &info) {
    }
    
    const Vector2 pt(event->x(), event->y());
-   
+#if 0   
    Qt::MouseButtons buttons = event->buttons();
    if (buttons & Qt::LeftButton) {
      m_active.clear();
@@ -99,6 +99,7 @@ void Frontend::mousePressEvent  (InteractionInfo &info) {
 	 m_deforming = true;
      }
    }
+#endif
 }
 
 void Frontend::mouseMoveEvent  (InteractionInfo &info) {
@@ -110,7 +111,7 @@ void Frontend::mouseMoveEvent  (InteractionInfo &info) {
    }
    
    const Vector2 pt(event->x(), event->y());
-
+#if 0
    if (m_deforming) {
      m_fiberMesh[m_deformingID]->DeformCurve(pt, m_deformingVert);
      m_parent->redraw();
@@ -123,6 +124,7 @@ void Frontend::mouseMoveEvent  (InteractionInfo &info) {
        m_parent->redraw();
      }
    }
+#endif
 
 }
 
@@ -132,6 +134,7 @@ void Frontend::mouseReleaseEvent(InteractionInfo &info) {
    QMouseEvent *event = static_cast<QMouseEvent *>(info.event);   
    const Vector2 pt(event->x(), event->y());
 
+#if 0
    if (m_deforming) {     
      m_fiberMesh[m_deformingID]->DeformCurve(pt, m_deformingVert, true);
      m_parent->redraw();
@@ -166,9 +169,9 @@ void Frontend::mouseReleaseEvent(InteractionInfo &info) {
      }
      
      m_active.clear();
-     
      m_parent->redraw();
    }
+#endif     
 }
 
 void Frontend::keyPressEvent(InteractionInfo &info) {
@@ -199,6 +202,11 @@ void Frontend::paintGL() {
 
   if (m_mouseDown)
     return;
+  glEnable(GL_BLEND);
+  glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+  if (skel) {
+      skel->draw();
+  }
 
   if (m_meshCreated && m_fiberMesh.size() > 0) {
     for (unsigned int i = 0; i < m_fiberMesh.size(); i++) {
@@ -239,9 +247,23 @@ void Frontend::paintGL() {
     Mesh *mesh = m_contractFMesh->GetMesh();
     
     if (mesh != NULL) {
+#if 0
        (*mesh->getMaterial())["kd"] = SpectralSampleSet(color[0], color[1],
 							color[2]);
-       mesh->preview();
+#endif
+       glColor4d(color[0], color[1], color[2], 0.4);
+       
+       glBegin(GL_TRIANGLES);
+       for (unsigned ti = 0; ti < mesh->getNoTriangles(); ti++) {
+	   MeshTriangle t = mesh->getTriangles()[ti];
+	   int v[3] = {t.A, t.B, t.C};
+	   for (int vi = 0; vi < 3; vi++) {
+	       glVertex3dv(mesh->getVertices()[v[vi]].data);
+	   }
+       }
+       glEnd();
+
+       //mesh->preview();
     }
 
     // Paint edges a different color.
