@@ -61,7 +61,7 @@ class MeshSkeleton {
   SparseMatrix * weights;
   Mesh * m_mesh;
 
-
+  double * m_colors[3];
   void initTetrabones();
 };
 
