@@ -145,7 +145,15 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	    Vector3 p = closest_point_seg(v, 
 					  m_nodes[m_bones[b].start_node],
 					  m_nodes[m_bones[b].end_node]);
-	    const double d = p.getDistance(v);
+	    double d = p.getDistance(v);
+#if 0
+	    // check to make sure path doesn't intersect mesh
+	    // XXX: commented out, cause it's too slow to be worth it.
+	    Vector3 vtop = p - v;
+	    Ray r(Point3() + v, vtop.getNormalized());
+	    if (m_mesh->intersects(r, vtop.getMagnitude()))
+		d *= 20;
+#endif
 	    if (d < closest_distance) {
 		closest_bone = b;
 		closest_distance = d;
@@ -180,8 +188,6 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	m_colors[1][b] = colors[b % 6][1];
 	m_colors[2][b] = colors[b % 6][2];
     }
-    
-    
 }
 
 // call this after you've adjusted the positions of the bones.
