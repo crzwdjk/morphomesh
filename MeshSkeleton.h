@@ -49,6 +49,7 @@ class MeshSkeleton {
 
   void draw();
   void update(int, Vector3);
+  Matrix4x4 extractTransform(Bone b0, Bone b1);
 
   void bindMesh(Mesh * m);
 
