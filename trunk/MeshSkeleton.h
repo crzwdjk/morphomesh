@@ -48,7 +48,7 @@ class MeshSkeleton {
   }
 
   void draw();
-  void update();
+  void update(int, Vector3);
 
   void bindMesh(Mesh * m);
 
