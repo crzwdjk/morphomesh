@@ -252,7 +252,7 @@ cout << "extracting transform for bone "<< b_i  << endl;
         vertices_old.setValue(0, v_i, vertices[v_i][0]);
         vertices_old.setValue(1, v_i, vertices[v_i][1]);
         vertices_old.setValue(2, v_i, vertices[v_i][2]);
-        vertices_old.setValue(3, v_i, 0);
+        vertices_old.setValue(3, v_i, 1);
     }
 
 cout << "updating vertex positions" << endl;
