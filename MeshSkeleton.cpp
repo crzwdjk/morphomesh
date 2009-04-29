@@ -63,6 +63,32 @@ void MeshSkeleton::draw()
 	glVertex3dv(m_nodes[m_bones[i].end_node].data);
     }
     glEnd();
+    //return;
+
+    // draw mesh
+
+    if (m_mesh != NULL) {
+	double cr[m_mesh->getNoVertices()];
+	double cg[m_mesh->getNoVertices()];
+	double cb[m_mesh->getNoVertices()];
+
+	weights->multiply(cr, m_colors[0], m_bones.size(), 1);
+	weights->multiply(cg, m_colors[1], m_bones.size(), 1);
+	weights->multiply(cb, m_colors[2], m_bones.size(), 1);
+
+	
+	glBegin(GL_TRIANGLES);
+	for (unsigned ti = 0; ti < m_mesh->getNoTriangles(); ti++) {
+	    MeshTriangle t = m_mesh->getTriangles()[ti];
+	    int v[3] = {t.A, t.B, t.C};
+	    for (int vi = 0; vi < 3; vi++) {
+		glColor4d(cr[v[vi]], cg[v[vi]], cb[v[vi]], 0.4);
+		glVertex3dv(m_mesh->getVertices()[v[vi]].data);
+	    }
+	}
+	glEnd();
+    }
+
     return;
 
     // draw tetrabones
@@ -106,17 +132,17 @@ void MeshSkeleton::bindMesh(Mesh * m)
 
     m_mesh = m;
     //Create weight matrix
-    weights = new SparseMatrix(m_nodes.size(), m_bones.size());
+    weights = new SparseMatrix(m_mesh->getNoVertices(), m_bones.size());
 
     //Bind skeleton nodes to bones
-    for (unsigned n = 0; n < m_nodes.size(); n++) {
-	const Vector3 v = m_nodes[n];
+    for (unsigned n = 0; n < m_mesh->getNoVertices(); n++) {
+	const Vector3 v = m_mesh->getVertices()[n];
 
 	int closest_bone = -1;
 	double closest_distance = INFINITY;
 	Vector3 closest_point;
 	for (unsigned b = 0; b < m_bones.size(); b++) {
-	    Vector3 p = closest_point_seg(m_nodes[n], 
+	    Vector3 p = closest_point_seg(v, 
 					  m_nodes[m_bones[b].start_node],
 					  m_nodes[m_bones[b].end_node]);
 	    const double d = p.getDistance(v);
@@ -145,6 +171,16 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	    weights->setValue(n, closest_bone, 1.0);
 	}
     } //Done binding skeleton nodes to bones
+
+    m_colors[0] = new double[m_bones.size()];
+    m_colors[1] = new double[m_bones.size()];
+    m_colors[2] = new double[m_bones.size()];
+    for (unsigned b = 0; b < m_bones.size(); b++) {
+	m_colors[0][b] = colors[b % 6][0];
+	m_colors[1][b] = colors[b % 6][1];
+	m_colors[2][b] = colors[b % 6][2];
+    }
+    
     
 }
 
@@ -154,3 +190,4 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
     m_nodes[changed_node] = newpos;
     initTetrabones();
 }
+

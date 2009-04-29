@@ -56,6 +56,9 @@ Frontend::Frontend(OpenGLCanvas *parent, const std::string &fileName)
     m_contractFMesh = new FiberMesh(m_origMesh, Vector3(Random::sample(0, 1), 
 							Random::sample(0, 1),
 							Random::sample(0, 1)));
+    if (skel) {
+	skel->bindMesh(m_contractFMesh->GetMesh());
+    }
     cout << "Contraction mesh created." << endl;
   }
 }
@@ -240,6 +243,7 @@ void Frontend::paintGL() {
 
   if (m_mouseDown)
     return;
+  glDisable(GL_LIGHTING);
   glEnable(GL_BLEND);
   glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
   if (skel) {
@@ -281,29 +285,8 @@ void Frontend::paintGL() {
   }
 
   if (m_contractFMesh != NULL && m_contractFMesh->GetMesh() != NULL) {
-    Vector3 color = m_contractFMesh->Color();
     Mesh *mesh = m_contractFMesh->GetMesh();
     
-    if (mesh != NULL) {
-#if 0
-       (*mesh->getMaterial())["kd"] = SpectralSampleSet(color[0], color[1],
-							color[2]);
-#endif
-       glColor4d(color[0], color[1], color[2], 0.4);
-       
-       glBegin(GL_TRIANGLES);
-       for (unsigned ti = 0; ti < mesh->getNoTriangles(); ti++) {
-	   MeshTriangle t = mesh->getTriangles()[ti];
-	   int v[3] = {t.A, t.B, t.C};
-	   for (int vi = 0; vi < 3; vi++) {
-	       glVertex3dv(mesh->getVertices()[v[vi]].data);
-	   }
-       }
-       glEnd();
-
-       //mesh->preview();
-    }
-
     // Paint edges a different color.
 
     unsigned int numVerts;
