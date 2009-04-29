@@ -134,7 +134,7 @@ void MeshSkeleton::bindMesh(Mesh * m)
     //Create weight matrix
     weights = new SparseMatrix(m_mesh->getNoVertices(), m_bones.size());
 
-    //Bind skeleton nodes to bones
+    //Bind mesh vertices to bones
     for (unsigned n = 0; n < m_mesh->getNoVertices(); n++) {
 	const Vector3 v = m_mesh->getVertices()[n];
 
@@ -178,7 +178,7 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	else {
 	    weights->setValue(n, closest_bone, 1.0);
 	}
-    } //Done binding skeleton nodes to bones
+    } //Done binding mesh vertices to bones
 
     m_colors[0] = new double[m_bones.size()];
     m_colors[1] = new double[m_bones.size()];
@@ -193,7 +193,92 @@ void MeshSkeleton::bindMesh(Mesh * m)
 // call this after you've adjusted the positions of the bones.
 void MeshSkeleton::update(int changed_node, Vector3 newpos)
 {
+cout << "finding affected bones" << endl;
+    std::vector<Bone> changed_bones_old;
+    std::vector<int> changed_bones_indices;
+    m_nodes.push_back(Vector3(m_nodes[changed_node]));
+    for(unsigned bone_index=0; bone_index < m_bones.size(); bone_index++) {
+        if(m_bones[bone_index].start_node == changed_node || m_bones[bone_index].end_node == changed_node) {
+            Bone b;
+            if (m_bones[bone_index].end_node == changed_node) {
+                b.start_node = m_bones[bone_index].start_node;
+                b.end_node = m_nodes.size()-1;
+            } else { 
+                b.start_node = m_nodes.size()-1;
+                b.end_node = m_bones[bone_index].end_node;
+            }
+            b.v3 = m_bones[bone_index].v3;
+            b.v4 = m_bones[bone_index].v4;
+            changed_bones_old.push_back(b);
+            changed_bones_indices.push_back(bone_index);
+        }
+    }
+
+cout << "updating bones" << endl;
     m_nodes[changed_node] = newpos;
     initTetrabones();
+
+cout << "initializing transformation matrices" << endl;
+    SparseMatrix T_x = SparseMatrix::zero(m_bones.size(), 4);
+    SparseMatrix T_y = SparseMatrix::zero(m_bones.size(), 4);
+    SparseMatrix T_z = SparseMatrix::zero(m_bones.size(), 4);
+    for(unsigned r=0; r<m_bones.size(); r++) {
+        T_x.setValue(r, 0, 1);
+        T_y.setValue(r, 1, 1);
+        T_z.setValue(r, 2, 1);
+    }
+
+cout << "extracting all transformations" << endl;
+    for(unsigned b_i=0; b_i < changed_bones_old.size(); b_i++) {
+cout << "extracting transform for bone "<< b_i  << endl;
+        Matrix4x4 T_i = extractTransform(changed_bones_old[b_i], m_bones[(changed_bones_indices[b_i])]);
+	for(unsigned c=0; c<4; c++) {
+            T_x.setValue(changed_bones_indices[b_i], c, T_i[0][c]);
+            T_y.setValue(changed_bones_indices[b_i], c, T_i[1][c]);
+            T_z.setValue(changed_bones_indices[b_i], c, T_i[2][c]);
+         }
+    }
+    
+    m_nodes.pop_back();
+
+    T_x = (*weights)*T_x;
+    T_y = (*weights)*T_y;
+    T_z = (*weights)*T_z;
+
+    unsigned num_vertices;
+    Vertex* vertices = m_mesh->getVertices(num_vertices);
+    SparseMatrix vertices_old = SparseMatrix::zero(4, num_vertices);
+    for(unsigned v_i=0; v_i < num_vertices; v_i++) {
+        vertices_old.setValue(0, v_i, vertices[v_i][0]);
+        vertices_old.setValue(1, v_i, vertices[v_i][1]);
+        vertices_old.setValue(2, v_i, vertices[v_i][2]);
+        vertices_old.setValue(3, v_i, 0);
+    }
+
+cout << "updating vertex positions" << endl;
+    SparseMatrix X_x = T_x*vertices_old;
+    SparseMatrix X_y = T_y*vertices_old;
+    SparseMatrix X_z = T_z*vertices_old;
+cout << "extract new vertex positions and update the mesh" << endl;
+    for(unsigned v_i=0; v_i < num_vertices; v_i++) {
+        vertices[v_i][0] = X_x.getValue(v_i, v_i);
+        vertices[v_i][1] = X_y.getValue(v_i, v_i);
+        vertices[v_i][2] = X_z.getValue(v_i, v_i);
+    }
 }
 
+Matrix4x4 MeshSkeleton::extractTransform(Bone b0, Bone b1) {
+    //Extract transformation based on old and new positions
+    double tb_original[16] = {m_nodes[b0.start_node][0], m_nodes[b0.end_node][0], b0.v3[0], b0.v4[0], 
+			      m_nodes[b0.start_node][1], m_nodes[b0.end_node][1], b0.v3[1], b0.v4[1], 
+                              m_nodes[b0.start_node][2], m_nodes[b0.end_node][2], b0.v3[2], b0.v4[2], 
+			      1, 1, 1, 1};
+
+    double tb_deformed[16] = {m_nodes[b1.start_node][0], m_nodes[b1.end_node][0], b1.v3[0], b1.v4[0], 
+			      m_nodes[b1.start_node][1], m_nodes[b1.end_node][1], b1.v3[1], b1.v4[1], 
+			      m_nodes[b1.start_node][2], m_nodes[b1.end_node][2], b1.v3[2], b1.v4[2], 
+ 			      1, 1, 1, 1};
+    Matrix4x4 v_old = Matrix4x4(tb_original);
+    Matrix4x4 v_new = Matrix4x4(tb_deformed);     
+    return v_new*v_old.getInverse(); 
+}
