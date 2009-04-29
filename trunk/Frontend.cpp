@@ -137,7 +137,7 @@ void Frontend::mouseMoveEvent  (InteractionInfo &info) {
    const Vector2 pt(event->x(), event->y());
    if (m_deforming) {
        Ray r = getCamera()->getWorldRay(Point2(pt[0] / getWidth(), pt[1] / getHeight(), 1));
-       Vector3 d = skel->GetNodes()[m_deformingVert];
+       Vector3 d = Point3() + skel->GetNodes()[m_deformingVert] - r.origin;
        skel->GetNodes()[m_deformingVert] = (r.origin + d.getMagnitude() * r.direction) - Point3();
        m_parent->redraw();
        return;
