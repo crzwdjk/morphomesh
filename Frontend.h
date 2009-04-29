@@ -90,6 +90,7 @@ class Frontend : public InteractionListener {
 
       unsigned int    m_deformingID;
       unsigned int    m_deformingVert;
+      Vector3         m_oldPos;
 
       ControlCurve    m_activeCurve;
 

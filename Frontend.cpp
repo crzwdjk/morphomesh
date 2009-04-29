@@ -101,6 +101,7 @@ void Frontend::mousePressEvent  (InteractionInfo &info) {
        if (min_distance < drag_thresh / getWidth()) {
 	   m_deforming = true;
 	   m_deformingVert = closest_point;
+	   m_oldPos = skel->GetNodes()[closest_point];
 	   cerr << "drag " << closest_point << endl;
        }
    }
@@ -142,7 +143,7 @@ void Frontend::mouseMoveEvent  (InteractionInfo &info) {
        Ray r = getCamera()->getWorldRay(Point2(pt[0] / getWidth(), pt[1] / getHeight(), 1));
        Vector3 d = Point3() + skel->GetNodes()[m_deformingVert] - r.origin;
        Vector3 newpos = (r.origin + d.getMagnitude() * r.direction) - Point3();
-       skel->update(m_deformingVert, newpos);
+       skel->GetNodes()[m_deformingVert] = newpos;
 
        m_parent->redraw();
        return;
@@ -173,6 +174,9 @@ void Frontend::mouseReleaseEvent(InteractionInfo &info) {
 
    if (m_deforming) {
        m_deforming = false;
+       Vector3 newpos = skel->GetNodes()[m_deformingVert];
+       skel->GetNodes()[m_deformingVert] = m_oldPos;
+       skel->update(m_deformingVert, newpos);
        m_parent->redraw();
    }
 #if 0
