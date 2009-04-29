@@ -102,7 +102,13 @@ static Vector3 closest_point_seg(Vector3 p, Vector3 seg_start, Vector3 seg_end)
 
 void MeshSkeleton::bindMesh(Mesh * m)
 {
-    weights = new SparseMatrix(m_nodes.size(), m_bones.size());
+    //Store mesh
+    m_mesh = m;
+
+    //Create weight matrix
+    weights = new SparseMatrix((m_nodes.size()+m->getNoVertices()), m_bones.size());
+
+    //Bind skeleton nodes to bones
     for (unsigned n = 0; n < m_nodes.size(); n++) {
 	const Vector3 v = m_nodes[n];
 
@@ -138,10 +144,52 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	else {
 	    weights->setValue(n, closest_bone, 1.0);
 	}
-    }
+    } //Done binding skeleton nodes to bones
+
+    //Bind mesh vertices to bones
+    Vertex* vertices = m->getVertices();
+    for (unsigned k = 0; k < m->getNoVertices(); k++) {
+	const Vector3 v = vertices[k];
+
+	int closest_bone = -1;
+	double closest_distance = INFINITY;
+	Vector3 closest_point;
+	for (unsigned b = 0; b < m_bones.size(); b++) {
+	    Vector3 p = closest_point_seg(vertices[k], 
+					  m_nodes[m_bones[b].start_node],
+					  m_nodes[m_bones[b].end_node]);
+	    const double d = p.getDistance(v);
+	    if (d < closest_distance) {
+		closest_bone = b;
+		closest_distance = d;
+		closest_point = p;
+	    }
+	}
+	// handle joint case
+	if (closest_point == m_nodes[m_bones[closest_bone].start_node]
+	    || closest_point == m_nodes[m_bones[closest_bone].end_node]) {
+	    int bonecount = 0;
+	    for (unsigned b1 = 0; b1 < m_bones.size(); b1++) {
+		if (closest_point == m_nodes[m_bones[b1].start_node] ||
+		    closest_point == m_nodes[m_bones[b1].end_node]) {
+		    bonecount++;
+		    weights->setValue(k+m_nodes.size(), b1, 1.0);
+		}
+	    }
+	    // normalize
+	    for(int i = 0; i < m_bones.size(); i++)
+		weights->setValue(k+m_nodes.size(), i, weights->getValue(k+m_nodes.size(), i) / bonecount);
+	} 
+	else {
+	    weights->setValue(k+m_nodes.size(), closest_bone, 1.0);
+	}
+    } //Done binding mesh to skeleton
+
+    
 }
 
 // call this after you've adjusted the positions of the bones.
 void MeshSkeleton::update()
 {
+   
 }
