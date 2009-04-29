@@ -100,9 +100,11 @@ static Vector3 closest_point_seg(Vector3 p, Vector3 seg_start, Vector3 seg_end)
     else return t * ab + seg_start;
 }
 
+// note: this will go away once we have an extractable skeleton
 void MeshSkeleton::bindMesh(Mesh * m)
 {
 
+    m_mesh = m;
     //Create weight matrix
     weights = new SparseMatrix(m_nodes.size(), m_bones.size());
 
@@ -147,7 +149,8 @@ void MeshSkeleton::bindMesh(Mesh * m)
 }
 
 // call this after you've adjusted the positions of the bones.
-void MeshSkeleton::update()
+void MeshSkeleton::update(int changed_node, Vector3 newpos)
 {
-   
+    m_nodes[changed_node] = newpos;
+    initTetrabones();
 }

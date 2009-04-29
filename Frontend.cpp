@@ -138,7 +138,9 @@ void Frontend::mouseMoveEvent  (InteractionInfo &info) {
    if (m_deforming) {
        Ray r = getCamera()->getWorldRay(Point2(pt[0] / getWidth(), pt[1] / getHeight(), 1));
        Vector3 d = Point3() + skel->GetNodes()[m_deformingVert] - r.origin;
-       skel->GetNodes()[m_deformingVert] = (r.origin + d.getMagnitude() * r.direction) - Point3();
+       Vector3 newpos = (r.origin + d.getMagnitude() * r.direction) - Point3();
+       skel->update(m_deformingVert, newpos);
+
        m_parent->redraw();
        return;
    }
@@ -167,7 +169,6 @@ void Frontend::mouseReleaseEvent(InteractionInfo &info) {
    const Vector2 pt(event->x(), event->y());
 
    if (m_deforming) {
-       skel->update();
        m_deforming = false;
        m_parent->redraw();
    }
