@@ -1,16 +1,7 @@
 #include <cstdio>
 #include "MeshSkeleton.h"
-
-
-static bool bones_adjacent(vector<Bone> & bones, int b1, int b2)
-{
-    return bones[b1].start_node == bones[b2].start_node
-       || bones[b1].start_node == bones[b2].end_node
-       || bones[b1].end_node == bones[b2].start_node
-       || bones[b1].end_node == bones[b2].end_node;
-}
-
-
+#include "MeshUtils.h"
+#include "LinearSolver.h"
 
 MeshSkeleton * MeshSkeleton::fromFile(const char * filename)
 {
@@ -37,31 +28,6 @@ MeshSkeleton * MeshSkeleton::fromFile(const char * filename)
 	}
     }
     skel->initTetrabones();
-
-    cerr << "assigning bones" << endl;
-    // initialize bone tree
-    skel->m_parents.insert(skel->m_parents.begin(), skel->m_bones.size(), -2);
-    // XXX: find centroid bone. Default to the first one currently.
-    skel->m_parents[0] = -1;
-    int boned;
-    do {
-       boned = 0;
-       for (unsigned b_i = 0; b_i < skel->m_bones.size(); b_i++) {
-           // if this bone has a parent
-           if (skel->m_parents[b_i] != -2) {
-               // parent all the adjacent bones to it
-               for (unsigned b_j = 0; b_j < skel->m_bones.size(); b_j++) {
-                   if (skel->m_parents[b_j] == -2 && bones_adjacent(skel->m_bones, b_i, b_j)) {
-                       skel->m_parents[b_j] = b_i;
-                       boned++;
-                   }
-               }
-           }
-       }
-       cerr << "boned " << boned <<endl;
-    } while (boned > 0);
-    cerr << "assigned" << endl;
-
     return skel;
 }
 
@@ -80,7 +46,7 @@ void MeshSkeleton::initTetrabones()
     }
 }
 
-static const double colors[][3] = 
+static const double colors[][3] =
     { {1, 0, 0},
       {0, 1, 0},
       {0, 0, 1},
@@ -112,7 +78,7 @@ void MeshSkeleton::draw()
 	weights->multiply(cg, m_colors[1], m_bones.size(), 1);
 	weights->multiply(cb, m_colors[2], m_bones.size(), 1);
 
-	
+
 	glBegin(GL_TRIANGLES);
 	for (unsigned ti = 0; ti < m_mesh->getNoTriangles(); ti++) {
 	    MeshTriangle t = m_mesh->getTriangles()[ti];
@@ -140,7 +106,7 @@ void MeshSkeleton::draw()
 
 	glVertex3dv(m_nodes[m_bones[i].start_node].data);
 	glVertex3dv(m_bones[i].v4.data);
-	
+
 	glVertex3dv(m_nodes[m_bones[i].end_node].data);
 	glVertex3dv(m_bones[i].v4.data);
 
@@ -155,7 +121,7 @@ static Vector3 closest_point_seg(Vector3 p, Vector3 seg_start, Vector3 seg_end)
 {
     Vector3 ab = seg_end - seg_start;
     Vector3 ac = p - seg_start;
-    
+
     double t = ab.dot(ac)/ab.getMagnitude2();
     if (t <= 0) return seg_start;
     else if (t >= 1) return seg_end;
@@ -179,19 +145,17 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	double closest_distance = INFINITY;
 	Vector3 closest_point;
 	for (unsigned b = 0; b < m_bones.size(); b++) {
-	    Vector3 p = closest_point_seg(v, 
+	    Vector3 p = closest_point_seg(v,
 					  m_nodes[m_bones[b].start_node],
 					  m_nodes[m_bones[b].end_node]);
 	    double d = p.getDistance(v);
-	    // WARNING: this may not be a good feature. feel free to disable.
-	    // fudge factor: vertex normal should be pointing away from bone
+/*	    // fudge factor: vertex normal should be pointing away from bone
 	    double f = vn.dot((v - p).getNormalized());
-	    if (f < 0) 
-		d *= 20;
+	    if (f < 0)
+		d *= 5;
 	    if (f < 0.8)
-		d *= (0.85 - f) * 20;
-	    // END WARNING
-	    
+		d *= (1 - f) * 5;*/
+
 	    if (d < closest_distance) {
 		closest_bone = b;
 		closest_distance = d;
@@ -212,7 +176,7 @@ void MeshSkeleton::bindMesh(Mesh * m)
 	    // normalize
 	    for(int i = 0; i < m_bones.size(); i++)
 		weights->setValue(n, i, weights->getValue(n, i) / bonecount);
-	} 
+	}
 	else {
 	    weights->setValue(n, closest_bone, 1.0);
 	}
@@ -231,6 +195,7 @@ void MeshSkeleton::bindMesh(Mesh * m)
 // call this after you've adjusted the positions of the bones.
 void MeshSkeleton::update(int changed_node, Vector3 newpos)
 {
+    // identify and store copies of the bones that were affected by moving the vertex
     std::vector<Bone> changed_bones_old;
     std::vector<int> changed_bones_indices;
     m_nodes.push_back(Vector3(m_nodes[changed_node]));
@@ -240,7 +205,7 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
             if (m_bones[bone_index].end_node == changed_node) {
                 b.start_node = m_bones[bone_index].start_node;
                 b.end_node = m_nodes.size()-1;
-            } else { 
+            } else {
                 b.start_node = m_nodes.size()-1;
                 b.end_node = m_bones[bone_index].end_node;
             }
@@ -260,9 +225,11 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
 	delta -= bonevect * delta.dot(bonevect);
     }
 
+    // update bone positions
     m_nodes[changed_node] += delta;
     initTetrabones();
 
+    // construct matrix of transformations
     SparseMatrix T_x = SparseMatrix::zero(m_bones.size(), 4);
     SparseMatrix T_y = SparseMatrix::zero(m_bones.size(), 4);
     SparseMatrix T_z = SparseMatrix::zero(m_bones.size(), 4);
@@ -280,40 +247,53 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
             T_z.setValue(changed_bones_indices[b_i], c, T_i[2][c]);
          }
     }
-    char updated[m_bones.size()];
-    memset(updated, 0, m_bones.size());
-    updated[changed_node] = 1;
-    // bones further out inherit the transfomation of bones closer in
-    // WARNING: this may not be a good feature. feel free to disable
-    for (unsigned b_i = 0; b_i < m_bones.size(); b_i++) {
-        for (unsigned b_j = 0; b_j < changed_bones_old.size(); b_j++) {
-            if (m_parents[b_i] == int(changed_bones_indices[b_j])) {
-                for (unsigned c = 0; c < 4; c++) {
-                    T_x.setValue(b_i, c, T_x.getValue(changed_bones_indices[b_j], c));
-                    T_y.setValue(b_i, c, T_y.getValue(changed_bones_indices[b_j], c));
-                    T_z.setValue(b_i, c, T_z.getValue(changed_bones_indices[b_j], c));
-                }
-		if (!updated[m_bones[b_i].start_node]) {
-		    m_nodes[m_bones[b_i].start_node] += delta;
-		    updated[m_bones[b_i].start_node] = 1;
-		}
-		if (!updated[m_bones[b_i].end_node]) {
-		    m_nodes[m_bones[b_i].end_node] += delta;
-		    updated[m_bones[b_i].end_node] = 1;
-		}
+
+    // get rid of nodes used in transformation extraction
+    m_nodes.pop_back();
+
+// optimizations
+/*    Neighborhood* neighborhoods;
+    MeshUtils::getNeighbors(m_mesh, &neighborhoods);*/
+
+    unsigned num_vertices = m_mesh->getNoVertices();
+    Vertex* vertices = m_mesh->getVertices();
+
+ /*   SparseMatrix constraints = SparseMatrix::zero(2*num_vertices, num_vertices);
+    SparseMatrix w_constraints = SparseMatrix::zero(2*num_vertices*m_bones.size(), num_vertices*m_bones.size());
+    SparseMatrix laplacian = SparseMatrix::zero(num_vertices, num_vertices);
+    SparseMatrix old_vertices = SparseMatrix::zero(num_vertices, 3);
+    for(unsigned i=0; i < num_vertices; i++) {
+        constraints.setValue(i,i, 1);
+        laplacian.setValue(i,i,1);
+        constraints.setValue(num_vertices+i, i, 1);
+        for (unsigned b1=0; b1 < m_bones.size(); b1++) {
+            w_constraints.setValue(m_bones.size()*i+b1, m_bones.size()*i+b1, 1);
+        }
+        old_vertices.setValue(i,0,vertices[i][0]);
+        old_vertices.setValue(i,1,vertices[i][1]);
+        old_vertices.setValue(i,2,vertices[i][2]);
+        unsigned* neighbor_indices = neighborhoods[i].vertices;
+        for(unsigned j=0; j < neighborhoods[i].noVertices; j++) {
+            constraints.setValue(i, neighbor_indices[j], -1/(double)neighborhoods[i].noVertices);
+            laplacian.setValue(i, neighbor_indices[j], -1/(double)neighborhoods[i].noVertices);
+            for(unsigned b2=0; b2 < m_bones.size(); b2++) {
+                w_constraints.setValue(m_bones.size()*i+b2, m_bones.size()*neighbor_indices[j]+b2, -1/(double)neighborhoods[i].noVertices);
             }
         }
     }
-    // END WARNING
 
-    m_nodes.pop_back();
+    SparseMatrix constraints_t = constraints.getTranspose();
+    SparseMatrix cTc = constraints_t*constraints;
+    LinearSolver solver;
+    solver.setA(cTc);*/
+//end optimization setup
 
+    //calculate weighted transformations
     T_x = (*weights)*T_x;
     T_y = (*weights)*T_y;
     T_z = (*weights)*T_z;
 
-    unsigned num_vertices = m_mesh->getNoVertices();
-    Vertex* vertices = m_mesh->getVertices();
+    // update vertex positions using weighted transformations
     for (unsigned v_i = 0; v_i < num_vertices; v_i++) {
         Vector3 vertex = vertices[v_i];
         double vector4v[4] = {vertex[0], vertex[1], vertex[2], 1};
@@ -328,20 +308,74 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
         vertices[v_i][1] = vertex_to_transform.dot(y_transform);
         vertices[v_i][2] = vertex_to_transform.dot(z_transform);
     }
+//more fun with optimization
+/*    SparseMatrix old_laplacian = laplacian*old_vertices;
+    SparseMatrix b = SparseMatrix::zero(2*num_vertices, 3);
+    for(unsigned i=0; i < num_vertices; i++) {
+        b.setValue(i, 0, old_laplacian.getValue(i, 0));
+        b.setValue(i, 1, old_laplacian.getValue(i, 1));
+        b.setValue(i, 2, old_laplacian.getValue(i, 2));
+
+        b.setValue(num_vertices+i,0,vertices[i][0]);
+        b.setValue(num_vertices+i,1,vertices[i][1]);
+        b.setValue(num_vertices+i,2,vertices[i][2]);
+    }
+
+    b = constraints_t*b;
+
+    double x[num_vertices];
+    double y[num_vertices];
+    double z[num_vertices];
+
+    // Solve for x coordinate.
+    double X[num_vertices];
+    for (unsigned int i = 0; i < num_vertices; i++) {
+         X[i] = b.getValue(i, 0);
+    }
+    if (!solver.solve(X, x)) {
+       cerr << "Couldn't solve for target x coords."<< endl;
+    }
+
+    // Solve for y coordinate.
+    double Y[num_vertices];
+    for (unsigned int i = 0; i < num_vertices; i++) {
+       Y[i] = b.getValue(i, 1);
+    }
+    if (!solver.solve(Y, y)) {
+        cerr << "Couldn't solve for target y coords." << endl;
+    }
+
+    // Solve for z coordinate.
+    double Z[num_vertices];
+    for (unsigned int i = 0; i < num_vertices; i++) {
+        Z[i] = b.getValue(i, 2);
+    }
+    if (!solver.solve(Z, z)) {
+        cerr << "Couldn't solve for target z coords."<< endl;
+    }
+
+    for(unsigned v_i =0; v_i < num_vertices; v_i++) {
+
+        vertices[v_i][0] = x[v_i];
+        vertices[v_i][1] = y[v_i];
+        vertices[v_i][2] = z[v_i];
+    }*/
+//end of optimizations
+
 }
 
 Matrix4x4 MeshSkeleton::extractTransform(Bone b0, Bone b1) {
     //Extract transformation based on old and new positions
-    double tb_original[16] = {m_nodes[b0.start_node][0], m_nodes[b0.end_node][0], b0.v3[0], b0.v4[0], 
-			      m_nodes[b0.start_node][1], m_nodes[b0.end_node][1], b0.v3[1], b0.v4[1], 
-                              m_nodes[b0.start_node][2], m_nodes[b0.end_node][2], b0.v3[2], b0.v4[2], 
+    double tb_original[16] = {m_nodes[b0.start_node][0], m_nodes[b0.end_node][0], b0.v3[0], b0.v4[0],
+			      m_nodes[b0.start_node][1], m_nodes[b0.end_node][1], b0.v3[1], b0.v4[1],
+                              m_nodes[b0.start_node][2], m_nodes[b0.end_node][2], b0.v3[2], b0.v4[2],
 			      1, 1, 1, 1};
 
-    double tb_deformed[16] = {m_nodes[b1.start_node][0], m_nodes[b1.end_node][0], b1.v3[0], b1.v4[0], 
-			      m_nodes[b1.start_node][1], m_nodes[b1.end_node][1], b1.v3[1], b1.v4[1], 
-			      m_nodes[b1.start_node][2], m_nodes[b1.end_node][2], b1.v3[2], b1.v4[2], 
+    double tb_deformed[16] = {m_nodes[b1.start_node][0], m_nodes[b1.end_node][0], b1.v3[0], b1.v4[0],
+			      m_nodes[b1.start_node][1], m_nodes[b1.end_node][1], b1.v3[1], b1.v4[1],
+			      m_nodes[b1.start_node][2], m_nodes[b1.end_node][2], b1.v3[2], b1.v4[2],
  			      1, 1, 1, 1};
     Matrix4x4 v_old = Matrix4x4(tb_original);
-    Matrix4x4 v_new = Matrix4x4(tb_deformed);     
-    return v_new*v_old.getInverse(); 
+    Matrix4x4 v_new = Matrix4x4(tb_deformed);
+    return v_new*v_old.getInverse();
 }
