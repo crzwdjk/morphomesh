@@ -193,7 +193,6 @@ void MeshSkeleton::bindMesh(Mesh * m)
 // call this after you've adjusted the positions of the bones.
 void MeshSkeleton::update(int changed_node, Vector3 newpos)
 {
-cout << "finding affected bones" << endl;
     std::vector<Bone> changed_bones_old;
     std::vector<int> changed_bones_indices;
     m_nodes.push_back(Vector3(m_nodes[changed_node]));
@@ -207,18 +206,16 @@ cout << "finding affected bones" << endl;
                 b.start_node = m_nodes.size()-1;
                 b.end_node = m_bones[bone_index].end_node;
             }
-            b.v3 = m_bones[bone_index].v3;
-            b.v4 = m_bones[bone_index].v4;
+            b.v3 = Vector3(m_bones[bone_index].v3);
+            b.v4 = Vector3(m_bones[bone_index].v4);
             changed_bones_old.push_back(b);
             changed_bones_indices.push_back(bone_index);
         }
     }
 
-cout << "updating bones" << endl;
     m_nodes[changed_node] = newpos;
     initTetrabones();
 
-cout << "initializing transformation matrices" << endl;
     SparseMatrix T_x = SparseMatrix::zero(m_bones.size(), 4);
     SparseMatrix T_y = SparseMatrix::zero(m_bones.size(), 4);
     SparseMatrix T_z = SparseMatrix::zero(m_bones.size(), 4);
@@ -228,9 +225,7 @@ cout << "initializing transformation matrices" << endl;
         T_z.setValue(r, 2, 1);
     }
 
-cout << "extracting all transformations" << endl;
     for(unsigned b_i=0; b_i < changed_bones_old.size(); b_i++) {
-cout << "extracting transform for bone "<< b_i  << endl;
         Matrix4x4 T_i = extractTransform(changed_bones_old[b_i], m_bones[(changed_bones_indices[b_i])]);
 	for(unsigned c=0; c<4; c++) {
             T_x.setValue(changed_bones_indices[b_i], c, T_i[0][c]);
@@ -245,25 +240,22 @@ cout << "extracting transform for bone "<< b_i  << endl;
     T_y = (*weights)*T_y;
     T_z = (*weights)*T_z;
 
-    unsigned num_vertices;
-    Vertex* vertices = m_mesh->getVertices(num_vertices);
-    SparseMatrix vertices_old = SparseMatrix::zero(4, num_vertices);
-    for(unsigned v_i=0; v_i < num_vertices; v_i++) {
-        vertices_old.setValue(0, v_i, vertices[v_i][0]);
-        vertices_old.setValue(1, v_i, vertices[v_i][1]);
-        vertices_old.setValue(2, v_i, vertices[v_i][2]);
-        vertices_old.setValue(3, v_i, 1);
-    }
-
-cout << "updating vertex positions" << endl;
-    SparseMatrix X_x = T_x*vertices_old;
-    SparseMatrix X_y = T_y*vertices_old;
-    SparseMatrix X_z = T_z*vertices_old;
-cout << "extract new vertex positions and update the mesh" << endl;
-    for(unsigned v_i=0; v_i < num_vertices; v_i++) {
-        vertices[v_i][0] = X_x.getValue(v_i, v_i);
-        vertices[v_i][1] = X_y.getValue(v_i, v_i);
-        vertices[v_i][2] = X_z.getValue(v_i, v_i);
+    cout << "updating vertex positions" << endl;
+    unsigned num_vertices = m_mesh->getNoVertices();
+    Vertex* vertices = m_mesh->getVertices();
+    for (unsigned v_i = 0; v_i < num_vertices; v_i++) {
+        Vector3 vertex = vertices[v_i];
+        double vector4v[4] = {vertex[0], vertex[1], vertex[2], 1};
+        Vector<4,double> vertex_to_transform = Vector<4,double>(vector4v);
+        double vector4x[4] = {T_x.getValue(v_i,0), T_x.getValue(v_i,1), T_x.getValue(v_i, 2), T_x.getValue(v_i,3)};
+        Vector<4,double> x_transform = Vector<4,double>(vector4x);
+        double vector4y[4] = {T_y.getValue(v_i,0), T_y.getValue(v_i,1), T_y.getValue(v_i, 2), T_y.getValue(v_i,3)};
+        Vector<4,double> y_transform = Vector<4,double>(vector4y);
+        double vector4z[4] = {T_z.getValue(v_i,0), T_z.getValue(v_i,1), T_z.getValue(v_i, 2), T_z.getValue(v_i,3)};
+        Vector<4,double> z_transform = Vector<4,double>(vector4z);
+        vertices[v_i][0] = vertex_to_transform.dot(x_transform);
+        vertices[v_i][1] = vertex_to_transform.dot(y_transform);
+        vertices[v_i][2] = vertex_to_transform.dot(z_transform);
     }
 }
 
