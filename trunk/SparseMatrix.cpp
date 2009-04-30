@@ -55,8 +55,9 @@ void SparseMatrix::multiply(double *out, const double *rhs, int m, int n) {
       for(j = i->second.begin(); j != i->second.end(); ++j) {
          const int col = j->first;
          
-         for(int k = n; k--;)
+         for(int k = n; k--;) {
             out[row * n + k] += j->second * rhs[col * n + k];
+         }
       }
    }
 }
