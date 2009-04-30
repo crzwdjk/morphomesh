@@ -213,7 +213,16 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
         }
     }
 
-    m_nodes[changed_node] = newpos;
+    Vector3 delta = newpos - m_nodes[changed_node];
+    // for each bone that is changed
+    // subtract the component parallel to that bone from newpos
+    for (unsigned b_i = 0; b_i < changed_bones_old.size(); b_i++) {
+	Vector3 bonevect = m_nodes[changed_bones_old[b_i].end_node] - m_nodes[changed_bones_old[b_i].start_node];
+	bonevect.normalize();
+	delta -= bonevect * delta.dot(bonevect);
+    }
+
+    m_nodes[changed_node] += delta;
     initTetrabones();
 
     SparseMatrix T_x = SparseMatrix::zero(m_bones.size(), 4);
