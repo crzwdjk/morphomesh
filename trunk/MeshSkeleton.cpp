@@ -137,6 +137,7 @@ void MeshSkeleton::bindMesh(Mesh * m)
     //Bind mesh vertices to bones
     for (unsigned n = 0; n < m_mesh->getNoVertices(); n++) {
 	const Vector3 v = m_mesh->getVertices()[n];
+	const Vector3 vn = m_mesh->getNormals()[n];
 
 	int closest_bone = -1;
 	double closest_distance = INFINITY;
@@ -146,14 +147,13 @@ void MeshSkeleton::bindMesh(Mesh * m)
 					  m_nodes[m_bones[b].start_node],
 					  m_nodes[m_bones[b].end_node]);
 	    double d = p.getDistance(v);
-#if 0
-	    // check to make sure path doesn't intersect mesh
-	    // XXX: commented out, cause it's too slow to be worth it.
-	    Vector3 vtop = p - v;
-	    Ray r(Point3() + v, vtop.getNormalized());
-	    if (m_mesh->intersects(r, vtop.getMagnitude()))
+	    // fudge factor: vertex normal should be pointing away from bone
+	    double f = vn.dot((v - p).getNormalized());
+	    if (f < 0) 
 		d *= 20;
-#endif
+	    if (f < 0.8)
+		d *= (0.85 - f) * 20;
+	    
 	    if (d < closest_distance) {
 		closest_bone = b;
 		closest_distance = d;
