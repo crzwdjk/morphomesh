@@ -1,6 +1,17 @@
 #include <cstdio>
 #include "MeshSkeleton.h"
 
+
+static bool bones_adjacent(vector<Bone> & bones, int b1, int b2)
+{
+    return bones[b1].start_node == bones[b2].start_node
+       || bones[b1].start_node == bones[b2].end_node
+       || bones[b1].end_node == bones[b2].start_node
+       || bones[b1].end_node == bones[b2].end_node;
+}
+
+
+
 MeshSkeleton * MeshSkeleton::fromFile(const char * filename)
 {
     FILE * f = fopen(filename, "r");
@@ -26,6 +37,31 @@ MeshSkeleton * MeshSkeleton::fromFile(const char * filename)
 	}
     }
     skel->initTetrabones();
+
+    cerr << "assigning bones" << endl;
+    // initialize bone tree
+    skel->m_parents.insert(skel->m_parents.begin(), skel->m_bones.size(), -2);
+    // XXX: find centroid bone. Default to the first one currently.
+    skel->m_parents[0] = -1;
+    int boned;
+    do {
+       boned = 0;
+       for (unsigned b_i = 0; b_i < skel->m_bones.size(); b_i++) {
+           // if this bone has a parent
+           if (skel->m_parents[b_i] != -2) {
+               // parent all the adjacent bones to it
+               for (unsigned b_j = 0; b_j < skel->m_bones.size(); b_j++) {
+                   if (skel->m_parents[b_j] == -2 && bones_adjacent(skel->m_bones, b_i, b_j)) {
+                       skel->m_parents[b_j] = b_i;
+                       boned++;
+                   }
+               }
+           }
+       }
+       cerr << "boned " << boned <<endl;
+    } while (boned > 0);
+    cerr << "assigned" << endl;
+
     return skel;
 }
 
@@ -147,12 +183,14 @@ void MeshSkeleton::bindMesh(Mesh * m)
 					  m_nodes[m_bones[b].start_node],
 					  m_nodes[m_bones[b].end_node]);
 	    double d = p.getDistance(v);
+	    // WARNING: this may not be a good feature. feel free to disable.
 	    // fudge factor: vertex normal should be pointing away from bone
 	    double f = vn.dot((v - p).getNormalized());
 	    if (f < 0) 
 		d *= 20;
 	    if (f < 0.8)
 		d *= (0.85 - f) * 20;
+	    // END WARNING
 	    
 	    if (d < closest_distance) {
 		closest_bone = b;
@@ -242,14 +280,38 @@ void MeshSkeleton::update(int changed_node, Vector3 newpos)
             T_z.setValue(changed_bones_indices[b_i], c, T_i[2][c]);
          }
     }
-    
+    char updated[m_bones.size()];
+    memset(updated, 0, m_bones.size());
+    updated[changed_node] = 1;
+    // bones further out inherit the transfomation of bones closer in
+    // WARNING: this may not be a good feature. feel free to disable
+    for (unsigned b_i = 0; b_i < m_bones.size(); b_i++) {
+        for (unsigned b_j = 0; b_j < changed_bones_old.size(); b_j++) {
+            if (m_parents[b_i] == int(changed_bones_indices[b_j])) {
+                for (unsigned c = 0; c < 4; c++) {
+                    T_x.setValue(b_i, c, T_x.getValue(changed_bones_indices[b_j], c));
+                    T_y.setValue(b_i, c, T_y.getValue(changed_bones_indices[b_j], c));
+                    T_z.setValue(b_i, c, T_z.getValue(changed_bones_indices[b_j], c));
+                }
+		if (!updated[m_bones[b_i].start_node]) {
+		    m_nodes[m_bones[b_i].start_node] += delta;
+		    updated[m_bones[b_i].start_node] = 1;
+		}
+		if (!updated[m_bones[b_i].end_node]) {
+		    m_nodes[m_bones[b_i].end_node] += delta;
+		    updated[m_bones[b_i].end_node] = 1;
+		}
+            }
+        }
+    }
+    // END WARNING
+
     m_nodes.pop_back();
 
     T_x = (*weights)*T_x;
     T_y = (*weights)*T_y;
     T_z = (*weights)*T_z;
 
-    cout << "updating vertex positions" << endl;
     unsigned num_vertices = m_mesh->getNoVertices();
     Vertex* vertices = m_mesh->getVertices();
     for (unsigned v_i = 0; v_i < num_vertices; v_i++) {
